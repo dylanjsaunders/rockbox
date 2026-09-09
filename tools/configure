@@ -3922,6 +3922,7 @@ fi
     # architecture, manufacturer and model for the target-tree build
     t_cpu="mips"
     t_manufacturer="ingenic_x1000"
+    t_soc="ingenic"
     t_model="fiiom3k"
     ;;
 
@@ -3946,6 +3947,7 @@ fi
     # architecture, manufacturer and model for the target-tree build
     t_cpu="mips"
     t_manufacturer="ingenic_x1000"
+    t_soc="ingenic"
     t_model="erosqnative"
     # player version, for bootloader usage
     # versions 1 and 2 both use 1
@@ -3974,6 +3976,7 @@ fi
     # architecture, manufacturer and model for the target-tree build
     t_cpu="mips"
     t_manufacturer="ingenic_x1000"
+    t_soc="ingenic"
     t_model="erosqnative"
     # player version, for bootloader usage
     # version 3
@@ -4003,6 +4006,7 @@ fi
     # architecture, manufacturer and model for the target-tree build
     t_cpu="mips"
     t_manufacturer="ingenic_x1000"
+    t_soc="ingenic"
     t_model="erosqnative"
     # player version, for bootloader usage
     # version 4
@@ -4097,6 +4101,7 @@ fi
     # architecture, manufacturer and model for the target-tree build
     t_cpu="mips"
     t_manufacturer="ingenic_x1000"
+    t_soc="ingenic"
     t_model="shanlingq1"
     ;;
 
@@ -4156,12 +4161,12 @@ fi
     sysfontbl="16-Terminus"
     ;;
 
-   290|ctru)
+    290|3ds)
     target_id=122
     application="yes"
-    modelname="ctru"
-    app_type="ctru-app"
-    target="CTRU"
+    modelname="3ds"
+    app_type="3ds-homebrew"
+    target="N3DS"
     memory=16
     uname=`uname`
     devkitarmcc
@@ -4174,8 +4179,8 @@ fi
     appextra="recorder:gui"
     plugins="yes"
     t_cpu="hosted"
-    t_manufacturer="ctru"
-    t_model="app"
+    t_manufacturer="game_console"
+    t_model="3ds"
     ;;
 
    300|hibyr3proii)
@@ -4506,7 +4511,10 @@ fi
 gccver=`$CC -dumpversion`;
 
 # figure out the binutil version too
-if [ "yes" = "$simulator" ] || [ "yes" = "$application" ] && [ $uname = "Darwin" ]; then
+if [ $uname = "Darwin" ] && \
+   [ "$app_type" = "sdl-sim" -o \
+     "$app_type" = "sdl-app" -o \
+     "$app_type" = "checkwps" ]; then
  ldnum=0
 else
  ldnum=`$LD --version | sed -n '1p' | sed -e 's/.* \([0-9]*\)\.\([0-9]*\).*/\1\2/'`
@@ -4876,9 +4884,9 @@ if test -n "$t_cpu"; then
   if [ "$simulator" = "yes" ]; then # a few more includes for the sim target tree
     TARGET_INC="$TARGET_INC -I\$(FIRMDIR)/target/hosted/sdl"
     TARGET_INC="$TARGET_INC -I\$(FIRMDIR)/target/hosted"
-  elif [ "$application" = "yes" ] && [ "$t_manufacturer" = "ctru" ]; then
-    TARGET_INC="$TARGET_INC -I\$(FIRMDIR)/target/hosted/ctru/lib"
-    TARGET_INC="$TARGET_INC -I\$(FIRMDIR)/target/hosted/ctru/lib/bfile"
+  elif [ "$application" = "yes" ] && [ "$t_manufacturer" = "game_console" ]; then
+    TARGET_INC="$TARGET_INC -I\$(FIRMDIR)/target/hosted/game_console/lib"
+    TARGET_INC="$TARGET_INC -I\$(FIRMDIR)/target/hosted/game_console/lib/bfile"
   fi
 
   if [ "$tinyalsa" = "yes" ]; then

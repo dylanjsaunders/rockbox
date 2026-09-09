@@ -275,7 +275,7 @@
 #define BTN_FIRE        BUTTON_A
 #define BTN_PAUSE       BUTTON_START
 
-#elif CONFIG_KEYPAD == CTRU_PAD
+#elif CONFIG_KEYPAD == N3DS_PAD
 #define BTN_UP          BUTTON_UP
 #define BTN_DOWN        BUTTON_DOWN
 #define BTN_LEFT        BUTTON_LEFT
@@ -320,7 +320,7 @@
       (CONFIG_KEYPAD != SHANLING_Q1_PAD) && \
       (CONFIG_KEYPAD != HIBY_R3PROII_PAD) && \
       (CONFIG_KEYPAD != HIDIZS_AP80MAX_PAD) && \
-      (CONFIG_KEYPAD != CTRU_PAD)
+      (CONFIG_KEYPAD != N3DS_PAD)
 #define BTN_FIRE       BUTTON_BOTTOMLEFT
 #define BTN_PAUSE      BUTTON_TOPLEFT
 #endif

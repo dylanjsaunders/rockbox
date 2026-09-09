@@ -92,7 +92,7 @@
 #define PLATFORM_HOSTED       (1<<1)
 #define PLATFORM_ANDROID      (1<<2)
 #define PLATFORM_SDL          (1<<3)
-#define PLATFORM_CTRU         (1<<4)
+#define PLATFORM_GAME_CONSOLE (1<<4)
 
 /* CONFIG_KEYPAD */
 #define IRIVER_H100_PAD     4
@@ -155,7 +155,7 @@
 #define ECHO_R1_PAD        75
 #define SURFANS_F28_PAD    76
 #define RG_NANO_PAD        77
-#define CTRU_PAD           78
+#define N3DS_PAD           78
 #define HIBY_R3PROII_PAD   79
 #define HIDIZS_AP80MAX_PAD 80
 #define INNIOASIS_Y1_PAD   81
@@ -578,8 +578,8 @@ Lyre prototype 1 */
 #include "config/surfansf28.h"
 #elif defined(RG_NANO)
 #include "config/rgnano.h"
-#elif defined(CTRU)
-#include "config/ctru.h"
+#elif defined(N3DS)
+#include "config/3ds.h"
 #elif defined(HIBY_R3PROII)
 #include "config/hibyr3proii.h"
 #elif defined(HIBY_R1)
@@ -1018,7 +1018,7 @@ Lyre prototype 1 */
 #if defined(ASSEMBLER_THREADS) \
     || defined(HAVE_WIN32_FIBER_THREADS) \
     || defined(HAVE_SIGALTSTACK_THREADS) \
-    || defined(CTRU)
+    || defined(N3DS)
 #define HAVE_PRIORITY_SCHEDULING
 #endif
 
