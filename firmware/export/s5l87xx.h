@@ -870,6 +870,9 @@
 #define FMC_BASE 0x3C200000
 #elif CONFIG_CPU==S5L8701
 #define FMC_BASE 0x39400000
+#elif CONFIG_CPU==S5L8702
+/* The first of two controllers; the BootROM addresses the second at +0x400 */
+#define FMC_BASE 0x38a00000
 #endif
 
 #define FMCTRL0                 (*(REG32_PTR_T)(FMC_BASE + 0x0000))     /* Control Register0 */
@@ -925,8 +928,21 @@
 #define RSSYND3_1               (*(REG32_PTR_T)(FMC_BASE + 0x0184))     /* On-the-fly Synd Register3[63:32] */
 #define RSSYND3_2               (*(REG32_PTR_T)(FMC_BASE + 0x0188))     /* On-the-fly Synd Register3[71:64] */
 #define FLAGSYND                (*(REG32_PTR_T)(FMC_BASE + 0x0190))     /* On-the-fly ECC Result Flag */
+
+/* S5L8702 registers the BootROM's page read uses.
+ * The real names are unknown. */
+#define FMUNK78                 (*(REG32_PTR_T)(FMC_BASE + 0x0078))     /* spare decode setup, 0x5140 */
+#define FMUNK7C                 (*(REG32_PTR_T)(FMC_BASE + 0x007C))     /* bit 1 start/busy; FMSYND5..7 */
+#define FMTRANS0                (*(REG32_PTR_T)(FMC_BASE + 0x080C))     /* per-chunk ECC correction kick */
+#define FMUNK810                (*(REG32_PTR_T)(FMC_BASE + 0x0810))     /* bit 0: correction failed, inferred */
+#define FMTRANS1                (*(REG32_PTR_T)(FMC_BASE + 0x0814))     /* correction mode, always 0x01000180 */
+#define FMTRANSSTAT             (*(REG32_PTR_T)(FMC_BASE + 0x0840))     /* correction status, w1c; bit 2 done */
+
+#define FMCTRL0_CE(bank)        (1 << ((bank) + 1))  /* chip enable bits 1-8 */
+#define FMCTRL0_CE_MASK         (0xff << 1)
 #define FMCTRL0_ENABLEDMA       (1 << 10)
 #define FMCTRL0_UNK1            (1 << 11)
+#define FMCTRL0_AUTOXFER        (1 << 24)       /* S5L8702: write the chunk to the address in FMDATAW0 */
 #define FMCTRL1_DOTRANSADDR     (1 << 0)
 #define FMCTRL1_DOREADDATA      (1 << 1)
 #define FMCTRL1_DOWRITEDATA     (1 << 2)
@@ -940,6 +956,9 @@
 #define FMCSTAT_BANK1READY      (1 << 5)
 #define FMCSTAT_BANK2READY      (1 << 6)
 #define FMCSTAT_BANK3READY      (1 << 7)
+#define FMCSTAT_UNK20           (1 << 20)       /* S5L8702: chunk written to memory */
+#define FMCSTAT_STATUSREADY     (1 << 23)       /* S5L8702: set after READ STATUS; not a ready bit */
+#define FMCSTAT_UNK27           (1 << 27)       /* S5L8702: chunk has ECC errors (inferred) */
 
 /* 13. SECURE DIGITAL CARD INTERFACE (SDCI) */
 #if CONFIG_CPU==S5L8700 || CONFIG_CPU==S5L8701
@@ -1642,6 +1661,28 @@
 The following peripherals are not present in the Samsung S5L8700 datasheet.
 Information for them was gathered solely by reverse-engineering Apple's firmware.
 */
+
+/* VPU-B H.264 decoder - S5L8702 */
+#if CONFIG_CPU == S5L8702
+#define VPU_MODE        (*((REG32_PTR_T)(0x38100314)))
+#define VPU_BASE        0x39800000
+#define VPU_REG(off)    (*((REG32_PTR_T)(VPU_BASE + (off))))
+
+#define VPU_DPB_Y(i)    VPU_REG((i) * 12)
+#define VPU_DPB_CB(i)   VPU_REG((i) * 12 + 4)
+#define VPU_DPB_CR(i)   VPU_REG((i) * 12 + 8)
+#define VPU_OUT_Y       VPU_REG(0x0cc)
+#define VPU_OUT_CB      VPU_REG(0x0d0)
+#define VPU_OUT_CR      VPU_REG(0x0d4)
+#define VPU_CTRL_BUF    VPU_REG(0x0d8)
+#define VPU_SLICE_DESC  VPU_REG(0x0dc)
+#define VPU_DIMS        VPU_REG(0x0e0)
+#define VPU_STRIDES     VPU_REG(0x0e4)
+#define VPU_CTRL        VPU_REG(0x0e8)
+#define VPU_STATUS0     VPU_REG(0x0f0)
+#define VPU_STATUS1     VPU_REG(0x0f4)
+#define VPU_CONFIG      VPU_REG(0x118)
+#endif
 
 /* Hardware AES crypto unit - S5L8701+ */
 #if CONFIG_CPU==S5L8701

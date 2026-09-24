@@ -6,9 +6,7 @@
  *   Firmware   |____|_  /\____/ \___  >__|_ \|___  /\____/__/\_ \
  *                     \/            \/     \/    \/            \/
  *
- * S5L8702-specific code for Cirrus codecs
- *
- * Copyright (c) 2010 Michael Sparmann
+ * Copyright (C) 2025-2026 David Cormier
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -19,49 +17,18 @@
  * KIND, either express or implied.
  *
  ****************************************************************************/
+#ifndef VIDEO_PLAYBACK_H
+#define VIDEO_PLAYBACK_H
 
-#include "system.h"
-#include "audiohw.h"
-#include "i2c-s5l8702.h"
-#include "s5l87xx.h"
-#include "cscodec.h"
+/*
+ * Hardware H.264 player implementation.
+ */
 
-void audiohw_init(void)
-{
-#ifdef HAVE_CS42L55
-    audiohw_preinit();
-#endif
-}
+#include <stddef.h>
 
-unsigned char cscodec_read(int reg)
-{
-    // TODO: not tested
-    unsigned char data;
-    i2c_read(0, 0x94, reg, 1, &data);
-    return data;
-}
+/* Play a validated H.264 Baseline/AAC-LC MP4 from caller-owned memory.
+ * The caller must retain the plugin audio buffer until this function returns.
+ * Returns 0 at end of stream, 1 on user exit, 2 for USB, or -1 on failure. */
+int video_h264_play(const char *filepath, void *buffer, size_t buffer_size);
 
-void cscodec_write(int reg, unsigned char data)
-{
-    // XXX: not tested
-    i2c_write(0, 0x94, reg, 1, &data);
-}
-
-void cscodec_power(bool state)
-{
-    (void)state; //TODO: Figure out which LDO this is
-}
-
-void cscodec_reset(bool state)
-{
-    // XXX: not tested
-    if (state) PDAT(3) &= ~8;
-    else PDAT(3) |= 8;
-}
-
-void cscodec_clock(bool state)
-{
-    // XXX: not tested
-    if (state) CLKCON3 &= ~0xffff;
-    else CLKCON3 |= 0x8000;
-}
+#endif /* VIDEO_PLAYBACK_H */
