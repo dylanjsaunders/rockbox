@@ -307,8 +307,6 @@ struct plugin_api {
     int (*font_load)(const char *path);
     void (*font_unload)(int font_id);
     struct font* (*font_get)(int font);
-    int (*font_measurestring)(const unsigned char *str, size_t maxbytes,
-                              size_t maxwidth, int *w, int *h, int fontnum);
     int  (*font_getstringsize)(const unsigned char *str, int *w, int *h,
                                int fontnumber);
     int (*font_get_width)(struct font* pf, ucschar_t char_code);
