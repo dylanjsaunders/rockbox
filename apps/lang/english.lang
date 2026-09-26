@@ -17281,3 +17281,17 @@
     *: "Finished"
   </voice>
 </phrase>
+<phrase>
+  id: LANG_KIOSK_MODE
+  desc: in system settings; locks the UI to the CoverFlow plugin
+  user: core
+  <source>
+    *: "Kiosk Mode"
+  </source>
+  <dest>
+    *: "Kiosk Mode"
+  </dest>
+  <voice>
+    *: "Kiosk Mode"
+  </voice>
+</phrase>

@@ -64,6 +64,7 @@ static fb_data *lcd_fb;
 #define PF_TRACKLIST (LAST_ACTION_PLACEHOLDER + 2)
 #define PF_SORTING_NEXT (LAST_ACTION_PLACEHOLDER + 3)
 #define PF_SORTING_PREV (LAST_ACTION_PLACEHOLDER + 4)
+#define PF_KIOSK_UNLOCK (LAST_ACTION_PLACEHOLDER + 5)
 
 #if defined(HAVE_SCROLLWHEEL) || CONFIG_KEYPAD == IRIVER_H10_PAD || \
     CONFIG_KEYPAD == MPIO_HD300_PAD
@@ -160,6 +161,9 @@ const struct button_mapping pf_context_buttons[] =
     {PF_QUIT,         BUTTON_MENU|BUTTON_REL,     BUTTON_MENU},
     {PF_SORTING_NEXT, BUTTON_SELECT|BUTTON_MENU,  BUTTON_NONE},
     {PF_SORTING_PREV, BUTTON_SELECT|BUTTON_PLAY,  BUTTON_NONE},
+    /* kiosk parent chord: hold Play, add Menu, keep both held ~3 s */
+    {PF_KIOSK_UNLOCK, BUTTON_MENU|BUTTON_PLAY,               BUTTON_NONE},
+    {PF_KIOSK_UNLOCK, BUTTON_MENU|BUTTON_PLAY|BUTTON_REPEAT, BUTTON_NONE},
 #elif CONFIG_KEYPAD == MPIO_HD300_PAD
     {PF_QUIT,         BUTTON_MENU|BUTTON_REPEAT,  BUTTON_MENU},
 #elif CONFIG_KEYPAD == IAUDIO_M3_PAD
@@ -4316,6 +4320,23 @@ static int context_menu(void)
 /*
  * Puts selected album's tracks into a newly created playlist and starts playing
  */
+/* --- kiosk mode (launched by the core with parameter "kiosk") ------------
+ * Quit/back/menu/context are swallowed so a child cannot leave CoverFlow,
+ * selecting an album always goes to the WPS, Menu-hold toggles shuffle, and
+ * only the parent chord (PF_KIOSK_UNLOCK held for KIOSK_UNLOCK_HOLD) returns
+ * PLUGIN_GOTO_ROOT, which the core treats as the unlock signal. */
+#define KIOSK_UNLOCK_HOLD (3*HZ)
+static bool kiosk = false;
+static long kiosk_unlock_start = 0;
+
+static void kiosk_toggle_shuffle(void)
+{
+    bool on = !rb->global_settings->playlist_shuffle;
+    rb->global_settings->playlist_shuffle = on;
+    rb->settings_save();
+    rb->splashf(HZ, "Shuffle %s", on ? "on" : "off");
+}
+
 static bool start_playback(bool return_to_WPS)
 {
 #ifdef USEGSLIB
@@ -4782,8 +4803,24 @@ static int pictureflow_main(void)
             ,instant_update ? 0 : HZ/16,
             get_context_map);
 
+        if (button != PF_KIOSK_UNLOCK && button != ACTION_NONE
+            && button != ACTION_UNKNOWN)
+            kiosk_unlock_start = 0;
+
         switch (button) {
+        case PF_KIOSK_UNLOCK:
+            if (kiosk)
+            {
+                if (kiosk_unlock_start == 0)
+                    kiosk_unlock_start = *rb->current_tick;
+                else if (TIME_AFTER(*rb->current_tick,
+                                    kiosk_unlock_start + KIOSK_UNLOCK_HOLD))
+                    return PLUGIN_GOTO_ROOT;
+            }
+            break;
         case PF_QUIT:
+            if (kiosk)
+                break;
             return PLUGIN_OK;
         case PF_WPS:
             return PLUGIN_GOTO_WPS;
@@ -4800,9 +4837,17 @@ static int pictureflow_main(void)
             else if (pf_state == pf_cover_out)
                 skip_animation_to_idle_state();
             else if (pf_state == pf_idle || pf_state == pf_scrolling)
-                return PLUGIN_OK;
+            {
+                if (!kiosk)
+                    return PLUGIN_OK;
+            }
             break;
         case PF_MENU:
+            if (kiosk)
+            {
+                kiosk_toggle_shuffle();
+                break;
+            }
 #ifdef USEGSLIB
             grey_show(false);
 #endif
@@ -4905,6 +4950,8 @@ static int pictureflow_main(void)
             break;
 #if PF_PLAYBACK_CAPABLE
         case PF_CONTEXT:
+            if (kiosk)
+                break;
             if (pf_state == pf_idle || pf_state == pf_scrolling ||
                 pf_state == pf_show_tracks || pf_state == pf_cover_out)
             {
@@ -4934,7 +4981,7 @@ static int pictureflow_main(void)
                 if (pf_state == pf_scrolling)
                     set_current_slide(target);
 #if PF_PLAYBACK_CAPABLE
-                if(pf_cfg.auto_wps == 1 && button == PF_SELECT)
+                if((kiosk || pf_cfg.auto_wps == 1) && button == PF_SELECT)
                 {
                     if (start_playback(true))
                         return PLUGIN_GOTO_WPS;
@@ -4952,7 +4999,7 @@ static int pictureflow_main(void)
                 if (show_tracks_while_browsing)
                     show_tracks_while_browsing = false;
 #if PF_PLAYBACK_CAPABLE
-                else if(pf_cfg.auto_wps != 0) {
+                else if(kiosk || pf_cfg.auto_wps != 0) {
                     if (start_playback(true))
                         return PLUGIN_GOTO_WPS;
                 }
@@ -4978,6 +5025,8 @@ enum plugin_status plugin_start(const void *parameter)
     int ret;
     const char *file = parameter;
     bool file_id3 = (parameter && (((char *) parameter)[0] == '/'));
+    kiosk = parameter && rb->strcmp((const char *)parameter, "kiosk") == 0;
+    kiosk_unlock_start = 0;
 
     if (!check_database())
     {

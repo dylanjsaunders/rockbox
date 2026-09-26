@@ -858,12 +858,75 @@ static int load_plugin_screen(char *key)
 
 static void ignore_back_button_stub(bool ignore)
 {
-#if (defined(PLATFORM_ANDROID) || defined(INNIOASIS_Y1))
+/* PLATFORM_ANDROID is a bit value defined for every target, so
+ * defined(PLATFORM_ANDROID) is always true; test the platform bits. */
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID) || defined(INNIOASIS_Y1)
     /* BACK button to be handled by Android instead of rockbox */
     android_ignore_back_button(ignore);
 #else
     (void) ignore;
 #endif
+}
+
+/* --- Kiosk mode -----------------------------------------------------------
+ * A locked-down "CoverFlow appliance" for young children.  While the lock is
+ * held, the pictureflow plugin is the only screen besides the WPS it launches:
+ * every other exit from the plugin or the WPS is routed straight back into
+ * the plugin.  The plugin returns PLUGIN_GOTO_ROOT to signal the parent's
+ * unlock chord, which releases the lock until the next boot (or until the
+ * parent turns the setting off).  The plugin is loaded by path, so no
+ * open_plugin registry entry is needed. */
+#define KIOSK_PLUGIN     PLUGIN_DEMOS_DIR "/pictureflow.rock"
+#define KIOSK_PARAM      "kiosk"
+#define KIOSK_MAX_FAILS  3       /* abnormal plugin exits before we give up */
+
+static bool kiosk_unlocked = false;
+
+bool kiosk_active(void)
+{
+    return global_settings.kiosk_mode && !kiosk_unlocked;
+}
+
+static int kiosk_run_plugin(void)
+{
+    static int abnormal_exits = 0;
+
+    push_activity_without_refresh(ACTIVITY_UNKNOWN); /* prevent plugin_load */
+    int ret = plugin_load(KIOSK_PLUGIN, KIOSK_PARAM);  /* from flashing root  */
+    pop_current_activity_without_refresh();          /* menu activity       */
+
+    if (ret == PLUGIN_GOTO_WPS)
+    {
+        abnormal_exits = 0;
+        return GO_TO_WPS;
+    }
+
+    if (ret == PLUGIN_GOTO_ROOT)
+    {
+        kiosk_unlocked = true;
+#ifdef SIMULATOR
+        DEBUGF("SIMTRACE kiosk unlock\n");
+#endif
+        splash(HZ, "Kiosk unlocked");
+        return GO_TO_ROOT;
+    }
+
+    /* In kiosk mode the plugin never quits on its own: any other return
+     * means it could not run (no database yet, missing file, USB, error).
+     * Re-enter a few times, then hand over to the parent rather than trap
+     * everyone in a loop of "press any button" prompts. */
+    if (++abnormal_exits >= KIOSK_MAX_FAILS)
+    {
+        abnormal_exits = 0;
+        kiosk_unlocked = true;
+#ifdef SIMULATOR
+        DEBUGF("SIMTRACE kiosk gave up\n");
+#endif
+        splash(HZ*2, "Kiosk: CoverFlow unavailable, unlocking");
+        return GO_TO_ROOT;
+    }
+    sleep(HZ/2);
+    return GO_TO_KIOSK;
 }
 
 static int root_menu_setup_screens(void)
@@ -958,11 +1021,29 @@ void root_menu(void)
 
     push_current_activity(ACTIVITY_MAINMENU);
     next_screen = root_menu_setup_screens();
+    if (kiosk_active())
+        next_screen = GO_TO_KIOSK;
 
     while (true)
     {
+        /* Nothing but the kiosk plugin and the WPS is reachable while locked */
+        if (kiosk_active() && next_screen != GO_TO_KIOSK && next_screen != GO_TO_WPS)
+            next_screen = GO_TO_KIOSK;
+#ifdef SIMULATOR
+        DEBUGF("SIMTRACE root next_screen %d\n", next_screen);
+#endif
         switch (next_screen)
         {
+            case GO_TO_KIOSK:
+                if (!kiosk_active())
+                {   /* stale "previous browser" after the parent unlocked */
+                    next_screen = GO_TO_ROOT;
+                    break;
+                }
+                next_screen = kiosk_run_plugin();
+                if (next_screen == GO_TO_WPS)
+                    previous_browser = GO_TO_KIOSK; /* WPS "browse" comes back here */
+                break;
             case MENU_ATTACHED_USB:
             case MENU_SELECTED_EXIT:
                 /* fall through */
@@ -973,6 +1054,9 @@ void root_menu(void)
                 /* When we are in the main menu we want the hardware BACK
                  * button to be handled by HOST instead of rockbox */
                 ignore_back_button_stub(true);
+#ifdef SIMULATOR
+                DEBUGF("SIMTRACE root menu shown\n");
+#endif
 
                 next_screen = do_menu(&root_menu_, &selected, NULL, false);
 

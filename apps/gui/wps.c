@@ -637,6 +637,32 @@ static long do_wps_exit(long action, bool bookmark)
     return GO_TO_PREVIOUS;
 }
 
+/* Kiosk mode (see root_menu.c): the WPS only offers transport and volume.
+ * Anything that would open another screen is swallowed, and the menu key
+ * behaves like "browse", which the root menu routes back to the kiosk
+ * plugin while the music keeps playing. */
+static long do_kiosk_mode(long action)
+{
+    if (!kiosk_active())
+        return action;
+    switch (action)
+    {
+        case ACTION_WPS_CONTEXT:
+        case ACTION_WPS_HOTKEY:
+        case ACTION_WPS_QUICKSCREEN:
+        case ACTION_WPS_PITCHSCREEN:
+        case ACTION_WPS_ID3SCREEN:
+        case ACTION_WPS_VIEW_PLAYLIST:
+        case ACTION_WPS_LIST_BOOKMARKS:
+        case ACTION_WPS_CREATE_BOOKMARK:
+            return ACTION_NONE;
+        case ACTION_WPS_MENU:
+            return ACTION_WPS_BROWSE;
+        default:
+            return action;
+    }
+}
+
 static long do_party_mode(long action)
 {
     if (global_settings.party_mode)
@@ -797,6 +823,7 @@ long gui_wps_show(void)
             button = skintouch_to_wps();
 #endif
         button = do_party_mode(button); /* block select actions in party mode */
+        button = do_kiosk_mode(button); /* block screen-opening actions in kiosk mode */
 
         button = action_wpsab_single(button); /* iPods/X5/M5 */
 

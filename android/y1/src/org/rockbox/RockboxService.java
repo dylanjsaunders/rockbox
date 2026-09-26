@@ -93,6 +93,7 @@ public class RockboxService extends Service
     
     /* Regular checks */
     private long mLastRestartTime = 0; // Timestamp of last restart attempt
+    private static final long CARD_WAIT_MAX_MS = 60000; // max wait for /sdcard/.rockbox at boot
     private static final long RESTART_COOLDOWN_MS = 500; // Minimum 1 seconds between restarts
     private PowerManager pm;
     private PowerManager.WakeLock wakeLock;
@@ -217,10 +218,20 @@ public class RockboxService extends Service
 
     private void startService()
     {
-        while (!Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState())) {
+        /* Environment.getExternalStorageState() tracks the *internal* volume on
+         * the Y1.  The removable card that holds /sdcard/.rockbox can be
+         * mounted by vold seconds later.  Starting before it is there makes
+         * the first-run check below believe this is a fresh install: it then
+         * re-extracts over the user's theme and writes a default config.cfg
+         * onto the card.  So also wait (bounded) for the Rockbox dir itself. */
+        final File rockboxOnCard = new File("/sdcard/.rockbox");
+        long waitedMs = 0;
+        while (!Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState())
+               || (!rockboxOnCard.isDirectory() && waitedMs < CARD_WAIT_MAX_MS)) {
             try {
                 Log.d("RockboxService", "SD not ready yet, postponing start.");
                 Thread.sleep(100); // wait a little bit before checkign again if the SD is mounted
+                waitedMs += 100;
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }

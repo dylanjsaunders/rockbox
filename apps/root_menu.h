@@ -33,6 +33,8 @@ struct menu_table {
 struct menu_table *root_menu_get_options(int *nb_options);
 
 enum {
+    /* kiosk mode: run the locked CoverFlow plugin (never an items[] index) */
+    GO_TO_KIOSK = -11,
     /* from old menu api, but still required*/
     MENU_ATTACHED_USB = -10,
     MENU_SELECTED_EXIT = -9,
@@ -71,6 +73,9 @@ enum {
 };
 #ifndef PLUGIN
 extern struct menu_item_ex root_menu_;
+
+/* true while kiosk mode is on and the parent has not unlocked it */
+bool kiosk_active(void);
 
 void root_menu_load_from_cfg(void* setting, char *value);
 char* root_menu_write_to_cfg(void* setting, char*buf, int buf_len);
