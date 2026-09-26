@@ -1056,17 +1056,42 @@ enum playlist_viewer_result playlist_viewer_ex(const char* filename,
             last_input = current_tick;
         if (kiosk_active())
         {
-            /* kiosk: no context menu, quickscreen, hotkeys; Menu = Back */
+            /* kiosk: no context menu, quickscreen, hotkeys; Menu = Back;
+             * Play = pause/resume in place (never "go to WPS" or stop) */
             switch (button)
             {
                 case ACTION_STD_CONTEXT:
                 case ACTION_STD_QUICKSCREEN:
                 case ACTION_STD_HOTKEY:
+                case ACTION_TREE_STOP:
                     button = ACTION_NONE;
                     break;
                 case ACTION_STD_MENU:
                     button = ACTION_STD_CANCEL;
                     break;
+                case ACTION_TREE_WPS:
+                {
+                    int status = audio_status();
+                    if ((status & AUDIO_STATUS_PLAY) && !(status & AUDIO_STATUS_PAUSE))
+                    {
+                        audio_pause();
+#ifdef SIMULATOR
+                        DEBUGF("SIMTRACE kiosk pause (tracklist)\n");
+#endif
+                        button = ACTION_NONE;
+                    }
+                    else if (status & AUDIO_STATUS_PAUSE)
+                    {
+                        audio_resume();
+#ifdef SIMULATOR
+                        DEBUGF("SIMTRACE kiosk resume (tracklist)\n");
+#endif
+                        button = ACTION_NONE;
+                    }
+                    else
+                        button = ACTION_STD_OK;   /* stopped: play the selected track */
+                    break;
+                }
             }
         }
         if (res)

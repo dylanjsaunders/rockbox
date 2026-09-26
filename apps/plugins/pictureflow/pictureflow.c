@@ -4910,6 +4910,34 @@ static int pictureflow_main(void)
                 break;
             return PLUGIN_OK;
         case PF_WPS:
+            if (kiosk)
+            {
+                /* Play is transport at every level: pause/resume in place;
+                 * with nothing playing it starts the centred album. */
+                int status = rb->audio_status();
+                if ((status & AUDIO_STATUS_PLAY) && !(status & AUDIO_STATUS_PAUSE))
+                {
+                    rb->audio_pause();
+#ifdef SIMULATOR
+                    DEBUGF("SIMTRACE kiosk pause (coverflow)\n");
+#endif
+                }
+                else if (status & AUDIO_STATUS_PAUSE)
+                {
+                    rb->audio_resume();
+#ifdef SIMULATOR
+                    DEBUGF("SIMTRACE kiosk resume (coverflow)\n");
+#endif
+                }
+                else if (pf_state == pf_idle || pf_state == pf_scrolling)
+                {
+                    if (pf_state == pf_scrolling)
+                        set_current_slide(target);
+                    if (start_playback(true))
+                        return PLUGIN_GOTO_WPS;
+                }
+                break;
+            }
             return PLUGIN_GOTO_WPS;
         case PF_BACK:
             if (show_tracks_while_browsing)

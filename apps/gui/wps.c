@@ -656,7 +656,8 @@ static long do_kiosk_mode(long action)
         case ACTION_WPS_LIST_BOOKMARKS:
         case ACTION_WPS_CREATE_BOOKMARK:
             return ACTION_NONE;
-        case ACTION_WPS_MENU:
+        case ACTION_WPS_MENU:     /* Back: up to the tracklist */
+        case ACTION_WPS_BROWSE:   /* centre: "in" also means the tracklist here */
             return ACTION_WPS_VIEW_PLAYLIST;
         default:
             return action;

@@ -426,6 +426,19 @@ def run_contract(sim: Sim, report: Report, profile: str):
         return
     time.sleep(2.0)
 
+    # 4c2. Play in CoverFlow pauses in place (and no idle return while paused), Play again resumes
+    m = sim.mark()
+    sim.tap(PLAY)
+    paused = sim.wait_for(r"SIMTRACE kiosk pause \(coverflow\)", 3, m) is not None
+    time.sleep(6.0)   # longer than the 4 s idle return: paused music must not trigger it
+    still = sim.current_activity() == "ACTIVITY_PLUGIN"
+    report.check("Play in CoverFlow pauses in place; paused music never idle-returns",
+                 paused and still, f"paused={paused} activity={sim.current_activity()}")
+    m = sim.mark()
+    sim.tap(PLAY)
+    resumed = sim.wait_for(r"SIMTRACE kiosk resume \(coverflow\)", 3, m) is not None
+    report.check("Play again in CoverFlow resumes", resumed)
+
     # 4d. idle in CoverFlow while playing -> player (kiosk idle return: 4 s in this profile)
     m = sim.mark()
     idle = sim.wait_for(rf"SIMTRACE activity push {ACT_ID['ACTIVITY_WPS']} ", 12, m) is not None
@@ -435,10 +448,21 @@ def run_contract(sim: Sim, report: Report, profile: str):
         return
     time.sleep(1.0)
 
-    # 4e. Menu -> tracklist; idle there -> player; select a track -> player
+    # 4e. centre in the player -> tracklist; Play there pauses/resumes in place;
+    #     idle there -> player; select a track -> player
     m = sim.mark()
-    sim.tap(MENU)
-    sim.wait_for(pv, 15, m)
+    sim.tap(SELECT)
+    opened = sim.wait_for(pv, 15, m) is not None
+    report.check("centre in the player opens the tracklist", opened, f"activity={sim.current_activity()}")
+    m = sim.mark()
+    sim.tap(PLAY)
+    paused = sim.wait_for(r"SIMTRACE kiosk pause \(tracklist\)", 3, m) is not None
+    time.sleep(1.0)
+    still = sim.current_activity() == "ACTIVITY_PLAYLISTVIEWER"
+    sim.tap(PLAY)
+    resumed = sim.wait_for(r"SIMTRACE kiosk resume \(tracklist\)", 3, m) is not None
+    report.check("Play in the tracklist pauses and resumes in place", paused and still and resumed,
+                 f"paused={paused} still={still} resumed={resumed}")
     m = sim.mark()
     idle = sim.wait_for(rf"SIMTRACE activity push {ACT_ID['ACTIVITY_WPS']} ", 12, m) is not None
     report.check("idle in the tracklist while playing returns to the player", idle,
