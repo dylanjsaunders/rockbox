@@ -35,6 +35,9 @@ KIOSK_CONFIG = """\
 # kiosk profile written by tools/kiosk-sim/simtest.py
 kiosk mode: on
 kiosk idle return: 4
+playlist viewer indices: off
+playlist viewer icons: off
+playlist viewer track display: title from tags
 warn when erasing dynamic playlist: off
 shuffle: off
 repeat: off
