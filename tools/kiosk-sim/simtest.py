@@ -34,6 +34,7 @@ MENU, SELECT, PLAY, LEFT, RIGHT = "Escape", "Return", "Space", "Left", "Right"
 KIOSK_CONFIG = """\
 # kiosk profile written by tools/kiosk-sim/simtest.py
 kiosk mode: on
+kiosk idle return: 4
 warn when erasing dynamic playlist: off
 shuffle: off
 repeat: off
@@ -389,17 +390,77 @@ def run_contract(sim: Sim, report: Report, profile: str):
     time.sleep(1.5)
     sim.screenshot("02-player")
 
-    # 4. Menu in the player returns to CoverFlow, never the main menu
+    # 4. Menu in the player opens the tracklist (middle level), never the main menu
     m = sim.mark()
     sim.tap(MENU)
-    back = sim.wait_for(r"SIMTRACE plugin_load .*pictureflow", 15, m) is not None
+    pv = rf"SIMTRACE activity push {ACT_ID['ACTIVITY_PLAYLISTVIEWER']} "
+    opened = sim.wait_for(pv, 15, m) is not None
     leaked = [l for l in sim.since(m) if "root menu shown" in l]
-    report.check("Menu in the player returns to CoverFlow", back and not leaked,
+    report.check("Menu in the player opens the album tracklist", opened and not leaked,
                  f"activity={sim.current_activity()}")
     if leaked:
         sim.screenshot("leak-player-menu")
         return
-    time.sleep(3.0)
+    time.sleep(1.5)
+    sim.screenshot("02b-tracklist")
+
+    # 4b. centre-hold in the tracklist opens no context menu
+    m = sim.mark()
+    sim.hold(SELECT, 1.0)
+    time.sleep(1.5)
+    ctx = [l for l in sim.since(m)
+           if f"activity push {ACT_ID['ACTIVITY_CONTEXTMENU']} " in l or "root menu shown" in l]
+    report.check("centre-hold in the tracklist opens nothing", not ctx, "; ".join(ctx)[:80])
+
+    # 4c. Menu in the tracklist returns to CoverFlow
+    m = sim.mark()
+    sim.tap(MENU)
+    back = sim.wait_for(r"SIMTRACE plugin_load .*pictureflow", 15, m) is not None
+    leaked = [l for l in sim.since(m) if "root menu shown" in l]
+    report.check("Menu in the tracklist returns to CoverFlow", back and not leaked,
+                 f"activity={sim.current_activity()}")
+    if leaked:
+        return
+    time.sleep(2.0)
+
+    # 4d. idle in CoverFlow while playing -> player (kiosk idle return: 4 s in this profile)
+    m = sim.mark()
+    idle = sim.wait_for(rf"SIMTRACE activity push {ACT_ID['ACTIVITY_WPS']} ", 12, m) is not None
+    report.check("idle in CoverFlow while playing returns to the player", idle,
+                 f"activity={sim.current_activity()}")
+    if not idle:
+        return
+    time.sleep(1.0)
+
+    # 4e. Menu -> tracklist; idle there -> player; select a track -> player
+    m = sim.mark()
+    sim.tap(MENU)
+    sim.wait_for(pv, 15, m)
+    m = sim.mark()
+    idle = sim.wait_for(rf"SIMTRACE activity push {ACT_ID['ACTIVITY_WPS']} ", 12, m) is not None
+    report.check("idle in the tracklist while playing returns to the player", idle,
+                 f"activity={sim.current_activity()}")
+    time.sleep(1.0)
+    m = sim.mark()
+    sim.tap(MENU)
+    sim.wait_for(pv, 15, m)
+    time.sleep(1.0)
+    sim.tap(RIGHT)      # next track in the list (scroll fwd on the iPod-style sim map)
+    time.sleep(0.5)
+    m = sim.mark()
+    sim.tap(SELECT)
+    ok = sim.wait_for(rf"SIMTRACE activity push {ACT_ID['ACTIVITY_WPS']} ", 15, m) is not None
+    report.check("selecting a track in the tracklist plays it in the player", ok,
+                 f"activity={sim.current_activity()}")
+    time.sleep(1.0)
+    m = sim.mark()
+    sim.tap(MENU)          # tracklist
+    sim.wait_for(pv, 15, m)
+    time.sleep(0.5)
+    m = sim.mark()
+    sim.tap(MENU)          # CoverFlow
+    sim.wait_for(r"SIMTRACE plugin_load .*pictureflow", 15, m)
+    time.sleep(1.0)
 
     # 5. Centre-hold in the player must not open the context menu
     sim.tap(SELECT)
@@ -417,9 +478,13 @@ def run_contract(sim: Sim, report: Report, profile: str):
         sim.screenshot("leak-context-menu")
         sim.tap(MENU)  # try to back out
         time.sleep(1.5)
-    sim.tap(MENU)      # back to CoverFlow
+    m = sim.mark()
+    sim.tap(MENU)      # player -> tracklist
+    sim.wait_for(pv, 15, m)
+    m = sim.mark()
+    sim.tap(MENU)      # tracklist -> CoverFlow (quickly: idle return is 4 s here)
     sim.wait_for(r"SIMTRACE plugin_load .*pictureflow", 15, m)
-    time.sleep(3.0)
+    time.sleep(1.5)
 
     # 6. Only the parent chord (Play + Menu held ~3 s) reaches the main menu
     m = sim.mark()

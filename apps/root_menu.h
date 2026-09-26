@@ -76,6 +76,9 @@ extern struct menu_item_ex root_menu_;
 
 /* true while kiosk mode is on and the parent has not unlocked it */
 bool kiosk_active(void);
+/* kiosk: music is playing and nothing was pressed for `kiosk idle return`
+ * seconds since `last_input` -> the caller should return to the WPS */
+bool kiosk_idle_return_due(long last_input);
 
 void root_menu_load_from_cfg(void* setting, char *value);
 char* root_menu_write_to_cfg(void* setting, char*buf, int buf_len);

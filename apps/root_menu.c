@@ -443,6 +443,14 @@ static int playlist_view(void * param)
     int val;
 
     val = playlist_viewer();
+    if (kiosk_active())
+    {
+        /* tracklist level: a picked track or the idle timeout -> player,
+         * Back (cancel) -> CoverFlow; the main menu is never reachable */
+        if (val == PLAYLIST_VIEWER_OK)
+            return GO_TO_WPS;
+        return GO_TO_KIOSK;
+    }
     switch (val)
     {
         case PLAYLIST_VIEWER_MAINMENU:
@@ -888,6 +896,17 @@ bool kiosk_active(void)
     return global_settings.kiosk_mode && !kiosk_unlocked;
 }
 
+bool kiosk_idle_return_due(long last_input)
+{
+    if (!kiosk_active() || global_settings.kiosk_idle_return <= 0)
+        return false;
+    int status = audio_status();
+    if (!(status & AUDIO_STATUS_PLAY) || (status & AUDIO_STATUS_PAUSE))
+        return false;   /* only while actually playing, like the iPod */
+    return TIME_AFTER(current_tick,
+                      last_input + global_settings.kiosk_idle_return * HZ);
+}
+
 #ifdef HAVE_TAGCACHE
 /* PictureFlow gives up after ~1 s if the database is not usable, e.g. while
  * a commit runs at boot after an interrupted scan. Without this, three taps
@@ -1057,8 +1076,10 @@ void root_menu(void)
 
     while (true)
     {
-        /* Nothing but the kiosk plugin and the WPS is reachable while locked */
-        if (kiosk_active() && next_screen != GO_TO_KIOSK && next_screen != GO_TO_WPS)
+        /* Nothing but the kiosk plugin, the WPS and the current playlist
+         * (the album tracklist, reached from the WPS) is reachable while locked */
+        if (kiosk_active() && next_screen != GO_TO_KIOSK && next_screen != GO_TO_WPS
+            && next_screen != GO_TO_PLAYLIST_VIEWER)
             next_screen = GO_TO_KIOSK;
 #ifdef SIMULATOR
         DEBUGF("SIMTRACE root next_screen %d\n", next_screen);

@@ -17295,3 +17295,17 @@
     *: "Kiosk Mode"
   </voice>
 </phrase>
+<phrase>
+  id: LANG_KIOSK_IDLE_RETURN
+  desc: in system settings; kiosk idle seconds before returning to the WPS
+  user: core
+  <source>
+    *: "Kiosk Idle Return"
+  </source>
+  <dest>
+    *: "Kiosk Idle Return"
+  </dest>
+  <voice>
+    *: "Kiosk Idle Return"
+  </voice>
+</phrase>

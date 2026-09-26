@@ -26,6 +26,7 @@
 #include <string.h>
 #include "playlist.h"
 #include "audio.h"
+#include "root_menu.h"   /* kiosk_active, kiosk_idle_return_due */
 #include "screens.h"
 #include "settings.h"
 #include "icons.h"
@@ -1009,9 +1010,20 @@ enum playlist_viewer_result playlist_viewer_ex(const char* filename,
         goto exit;
     }
 
+    long last_input = current_tick;   /* kiosk idle return */
+
     while (!exit)
     {
         int track;
+
+        if (kiosk_idle_return_due(last_input))
+        {
+#ifdef SIMULATOR
+            DEBUGF("SIMTRACE kiosk idle return (tracklist)\n");
+#endif
+            ret = PLAYLIST_VIEWER_OK;   /* -> WPS in kiosk mode */
+            break;
+        }
 
         if (global_status.resume_index != -1 && !viewer.playlist)
             playlist_get_resume_info(&track);
@@ -1039,6 +1051,24 @@ enum playlist_viewer_result playlist_viewer_ex(const char* filename,
          * since viewer.selected_track is updated too late (after the first draw)
          * drawing the moving item needs it */
         viewer.selected_track=gui_synclist_get_sel_pos(&playlist_lists);
+        if (button != ACTION_NONE && button != ACTION_UNKNOWN
+            && button != ACTION_REDRAW && button > 0 && !IS_SYSEVENT(button))
+            last_input = current_tick;
+        if (kiosk_active())
+        {
+            /* kiosk: no context menu, quickscreen, hotkeys; Menu = Back */
+            switch (button)
+            {
+                case ACTION_STD_CONTEXT:
+                case ACTION_STD_QUICKSCREEN:
+                case ACTION_STD_HOTKEY:
+                    button = ACTION_NONE;
+                    break;
+                case ACTION_STD_MENU:
+                    button = ACTION_STD_CANCEL;
+                    break;
+            }
+        }
         if (res)
         {
             bool reload = playlist_buffer_needs_reload(&viewer.buffer,
@@ -1106,6 +1136,11 @@ enum playlist_viewer_result playlist_viewer_ex(const char* filename,
                     /* play new track */
                     playlist_start(current_track->index, 0, 0);
                     update_playlist(false);
+                    if (kiosk_active())
+                    {   /* picked a track: straight to the player */
+                        exit = true;
+                        ret = PLAYLIST_VIEWER_OK;
+                    }
                 }
                 else if (warn_on_pl_erase())
                 {

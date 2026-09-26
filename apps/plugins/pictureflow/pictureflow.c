@@ -4361,6 +4361,20 @@ static int context_menu(void)
 #define KIOSK_UNLOCK_HOLD (4*HZ)   /* ~5 s of real hold; a squeezed wheel won't do it */
 static bool kiosk = false;
 static long kiosk_unlock_start = 0;
+static long kiosk_last_input = 0;
+
+/* iPod-style: music playing and nothing pressed for `kiosk idle return`
+ * seconds -> back to the player. Only while actually playing (not paused). */
+static bool kiosk_idle_return_due(void)
+{
+    int idle = rb->global_settings->kiosk_idle_return;
+    if (!kiosk || idle <= 0)
+        return false;
+    int status = rb->audio_status();
+    if (!(status & AUDIO_STATUS_PLAY) || (status & AUDIO_STATUS_PAUSE))
+        return false;
+    return TIME_AFTER(*rb->current_tick, kiosk_last_input + idle * HZ);
+}
 
 static void kiosk_toggle_shuffle(void)
 {
@@ -4843,6 +4857,17 @@ static int pictureflow_main(void)
             && button != ACTION_UNKNOWN && button != ACTION_REDRAW
             && button > 0 && !IS_SYSEVENT(button))
             kiosk_unlock_start = 0;
+        if (button != ACTION_NONE && button != ACTION_UNKNOWN
+            && button != ACTION_REDRAW && button > 0 && !IS_SYSEVENT(button))
+            kiosk_last_input = *rb->current_tick;
+        else if (kiosk_idle_return_due()
+                 && (pf_state == pf_idle || pf_state == pf_show_tracks))
+        {
+#ifdef SIMULATOR
+            DEBUGF("SIMTRACE kiosk idle return (coverflow)\n");
+#endif
+            return PLUGIN_GOTO_WPS;
+        }
 
         switch (button) {
         case PF_KIOSK_UNLOCK:
@@ -5064,6 +5089,7 @@ enum plugin_status plugin_start(const void *parameter)
     bool file_id3 = (parameter && (((char *) parameter)[0] == '/'));
     kiosk = parameter && rb->strcmp((const char *)parameter, "kiosk") == 0;
     kiosk_unlock_start = 0;
+    kiosk_last_input = *rb->current_tick;
 
     if (!check_database())
     {

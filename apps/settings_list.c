@@ -2187,6 +2187,8 @@ const struct settings_list settings[] = {
                    ID2P(LANG_OPEN_PLUGIN)
                   ),
     OFFON_SETTING(0, kiosk_mode, LANG_KIOSK_MODE, false, "kiosk mode", NULL),
+    INT_SETTING(0, kiosk_idle_return, LANG_KIOSK_IDLE_RETURN, 30,
+                "kiosk idle return", UNIT_SEC, 0, 120, 5, NULL, NULL, NULL),
 #if defined(HAVE_RTC_ALARM) && \
     (defined(HAVE_RECORDING) || CONFIG_TUNER)
     {F_T_INT|F_HAS_CFGVALS, &global_settings.alarm_wake_up_screen, LANG_ALARM_WAKEUP_SCREEN,

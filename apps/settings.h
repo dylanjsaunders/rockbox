@@ -554,6 +554,8 @@ struct user_settings
     int car_adapter_mode_delay; /* delay before resume,  in seconds*/
     int start_in_screen;
     bool kiosk_mode; /* lock the UI to the CoverFlow plugin (kids' appliance) */
+    int kiosk_idle_return; /* kiosk: seconds idle in CoverFlow/tracklist while playing before
+                              returning to the WPS (iPod "Now Playing" behaviour); 0 = off */
 #if defined(HAVE_RTC_ALARM) && \
     (defined(HAVE_RECORDING) || CONFIG_TUNER)
     int alarm_wake_up_screen;
