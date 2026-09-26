@@ -1805,6 +1805,9 @@ static int current_activity_top = 0;
 static void push_current_activity_refresh(enum current_activity screen, bool refresh)
 {
     current_activity[current_activity_top++] = screen;
+#ifdef SIMULATOR
+    DEBUGF("SIMTRACE activity push %d depth %d\n", screen, current_activity_top);
+#endif
     FOR_NB_SCREENS(i)
     {
         skinlist_set_cfg(i, NULL);
@@ -1822,6 +1825,11 @@ static void push_current_activity_refresh(enum current_activity screen, bool ref
 static void pop_current_activity_refresh(bool refresh)
 {
     current_activity_top--;
+#ifdef SIMULATOR
+    DEBUGF("SIMTRACE activity pop -> %d depth %d\n",
+           current_activity[current_activity_top?current_activity_top-1:0],
+           current_activity_top);
+#endif
     FOR_NB_SCREENS(i)
     {
         skinlist_set_cfg(i, NULL);

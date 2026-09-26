@@ -34,6 +34,9 @@ int sdl_event_filter(void *userdata, SDL_Event * event);
 #endif
 
 bool button_hold(void);
+#ifdef SIMULATOR
+void sim_scripted_input_start(void);
+#endif
 #undef button_init_device
 void button_init_device(void);
 #ifdef HAVE_BUTTON_DATA

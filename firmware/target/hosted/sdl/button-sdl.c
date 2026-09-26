@@ -38,6 +38,7 @@
 #include "sim_tasks.h"
 #include "buttonmap.h"
 #include "debug.h"
+#include <string.h>
 #include "powermgmt.h"
 #include "storage.h"
 
@@ -392,6 +393,114 @@ void gui_message_loop(void)
 
     } while(!quit);
 }
+
+#ifdef SIMULATOR
+/*
+ * Scripted input for headless/automated runs.
+ *
+ * If RBSIM_INPUT names a FIFO (or file), a thread reads it line by line and
+ * feeds synthetic SDL key events through the normal event handler, so the
+ * regular simulator button maps apply.  Commands (one per line):
+ *   down <SDL key name>   press and hold, e.g. "down Escape"
+ *   up <SDL key name>     release
+ *   tap <SDL key name>    press for ~70 ms then release
+ *   dump                  trigger a screendump (BMP in the sim root)
+ *   swpoweroff on|off     enable/disable the long-press software power-off
+ *                         (targets like the iPods shut down on a held Play,
+ *                         which breaks scripted chords that include Play)
+ * Each processed line is echoed to stderr as "SIMTRACE input <cmd> <arg>".
+ */
+#ifdef HAVE_SW_POWEROFF
+void button_set_sw_poweroff_state(bool en);
+#endif
+static void sim_scripted_key(SDL_Keycode k, bool down)
+{
+    SDL_Event ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+    ev.key.state = down ? SDL_PRESSED : SDL_RELEASED;
+    ev.key.keysym.sym = k;
+    ev.key.keysym.scancode = SDL_GetScancodeFromKey(k);
+    sim_enter_irq_handler();
+    event_handler(&ev);
+    sim_exit_irq_handler();
+}
+
+static int sim_scripted_input_thread(void *path_)
+{
+    const char *path = path_;
+    char line[128];
+
+    for (;;)
+    {
+        FILE *f = fopen(path, "r");
+        if (!f)
+        {
+            fprintf(stderr, "SIMTRACE input cannot open %s\n", path);
+            return 0;
+        }
+        while (fgets(line, sizeof(line), f))
+        {
+            char *nl = strchr(line, '\n');
+            if (nl) *nl = '\0';
+            if (line[0] == '\0' || line[0] == '#')
+                continue;
+            char *sp = strchr(line, ' ');
+            const char *arg = "";
+            if (sp) { *sp = '\0'; arg = sp + 1; }
+
+            if (!strcmp(line, "dump"))
+            {
+                sim_enter_irq_handler();
+                sim_trigger_screendump();
+                sim_exit_irq_handler();
+            }
+            else if (!strcmp(line, "swpoweroff"))
+            {
+#ifdef HAVE_SW_POWEROFF
+                button_set_sw_poweroff_state(strcmp(arg, "off") != 0);
+#endif
+            }
+            else if (!strcmp(line, "down") || !strcmp(line, "up") ||
+                     !strcmp(line, "tap"))
+            {
+                SDL_Keycode k = SDL_GetKeyFromName(arg);
+                if (k == SDLK_UNKNOWN)
+                {
+                    fprintf(stderr, "SIMTRACE input unknown key '%s'\n", arg);
+                    continue;
+                }
+                if (!strcmp(line, "up"))
+                    sim_scripted_key(k, false);
+                else
+                {
+                    sim_scripted_key(k, true);
+                    if (!strcmp(line, "tap"))
+                    {
+                        SDL_Delay(70);
+                        sim_scripted_key(k, false);
+                    }
+                }
+            }
+            else
+            {
+                fprintf(stderr, "SIMTRACE input unknown command '%s'\n", line);
+                continue;
+            }
+            fprintf(stderr, "SIMTRACE input %s %s\n", line, arg);
+        }
+        fclose(f); /* writer went away; reopen and wait for the next one */
+    }
+    return 0;
+}
+
+void sim_scripted_input_start(void)
+{
+    const char *path = getenv("RBSIM_INPUT");
+    if (path && *path)
+        SDL_CreateThread(sim_scripted_input_thread, "rbsim-input", (void *)path);
+}
+#endif /* SIMULATOR */
 
 #if defined(SIMULATOR)
 static void show_sim_help(void)

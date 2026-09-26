@@ -1037,7 +1037,13 @@ int plugin_load(const char* plugin, const void* parameter)
 
     plugin_check_open_close__enter();
 
+#ifdef SIMULATOR
+    DEBUGF("SIMTRACE plugin_load %s\n", plugin);
+#endif
     int rc = p_hdr->entry_point(parameter); /* run the loaded plugin */
+#ifdef SIMULATOR
+    DEBUGF("SIMTRACE plugin_exit %s rc %d\n", plugin, rc);
+#endif
 
     /* unlock the tree and restore the dirfilter pointer */
     tree_unlock_cache(tc);

@@ -268,6 +268,10 @@ void system_init(void)
 #else
     SDL_AddEventWatch(sdl_event_filter, NULL);
 #endif
+
+#ifdef SIMULATOR
+    sim_scripted_input_start(); /* RBSIM_INPUT: scripted key events */
+#endif
 }
 
 
