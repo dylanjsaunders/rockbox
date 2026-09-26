@@ -34,7 +34,6 @@ MENU, SELECT, PLAY, LEFT, RIGHT = "Escape", "Return", "Space", "Left", "Right"
 KIOSK_CONFIG = """\
 # kiosk profile written by tools/kiosk-sim/simtest.py
 kiosk mode: on
-database autoupdate: on
 warn when erasing dynamic playlist: off
 shuffle: on
 repeat: all
@@ -47,7 +46,6 @@ BASELINE_CONFIG = """\
 kiosk mode: off
 start in screen: root
 root menu order: shortcuts, database, wps, settings,
-database autoupdate: on
 warn when erasing dynamic playlist: off
 shuffle: on
 repeat: all
@@ -55,12 +53,11 @@ volume limit: -20
 volume: -25
 """
 
-DB_BUILD_CONFIG = """\
-kiosk mode: off
-start in screen: root
-root menu order: database, files, wps, settings,
-database autoupdate: on
-"""
+# NB: the setting's config key is `tagcache_autoupdate`, not "database
+# autoupdate" (that line was silently ignored for months). The boot-time
+# build is gated on kiosk mode OR tagcache_autoupdate; the profiles use kiosk
+# mode so no per-boot autoupdate scan runs in the tests.
+DB_BUILD_CONFIG = KIOSK_CONFIG
 
 
 def activity_names():
@@ -252,58 +249,96 @@ def prepare_simdisk(build_dir: Path, fixtures: Path):
     return root
 
 
+def database_built(rb: Path) -> bool:
+    return (rb / "database_idx.tcd").exists() and not (rb / "database_tmp.tcd").exists()
+
+
+def wait_database(rb: Path, timeout: float) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if database_built(rb):
+            return True
+        time.sleep(1)
+    return database_built(rb)
+
+
 def build_database(build_dir: Path, out: Path, report: Report):
-    """Boot once with a plain profile so tagcache scans the fixture library."""
+    """Boot once in kiosk mode: the patched core builds a missing database
+    itself, before the UI starts, and commits it in the same boot (no
+    Initialize prompt, no restart)."""
     rb = build_dir / "simdisk/.rockbox"
     (rb / "config.cfg").write_text(DB_BUILD_CONFIG)
     sim = Sim(build_dir, out, "dbbuild")
     sim.start()
     try:
-        ok = sim.wait_for(r"SIMTRACE root menu shown", 30) is not None
-        report.check("simulator boots headless", ok)
-        # `database autoupdate` only maintains an existing database; the first
-        # build needs Database -> "Initialize now?" -> Yes, exactly as on the Y1.
-        time.sleep(1.5)
-        sim.tap(SELECT)   # Database (first root item in DB_BUILD_CONFIG)
-        time.sleep(1.5)
-        sim.tap(SELECT)   # Yes, initialize
-        # scan phase: wait until the temp database exists and stops growing
-        deadline = time.time() + 90
-        scanned = False
-        last = -1
-        while time.time() < deadline:
-            tmp = rb / "database_tmp.tcd"
-            idx = rb / "database_idx.tcd"
-            if idx.exists() and not tmp.exists():
-                scanned = True
-                break
-            if tmp.exists():
-                size = tmp.stat().st_size
-                if size == last and size > 0:
-                    scanned = True
-                    break
-                last = size
-            time.sleep(2)
-        report.check("tagcache scanned the fixture library", scanned)
+        ok = sim.wait_for(r"SIMTRACE tagcache boot build done", 120) is not None
+        report.check("simulator boots headless and builds the missing database", ok)
+        built = wait_database(rb, 30)
+        report.check("missing database is built and committed at boot, no taps", built,
+                     ", ".join(sorted(p.name for p in rb.glob("database_*.tcd")))[:70])
+        time.sleep(1.0)
     finally:
         sim.stop()
-    # commit phase: like the device, a fresh database is committed on the next boot
-    built = (rb / "database_idx.tcd").exists() and not (rb / "database_tmp.tcd").exists()
-    if scanned and not built:
-        sim = Sim(build_dir, out, "dbcommit")
-        sim.start()
-        try:
-            deadline = time.time() + 90
-            while time.time() < deadline:
-                if (rb / "database_idx.tcd").exists() and not (rb / "database_tmp.tcd").exists():
-                    built = True
-                    break
-                time.sleep(1)
-            time.sleep(2)
-        finally:
-            sim.stop()
-    report.check("tagcache committed (database_idx.tcd present)", built,
-                 ", ".join(sorted(p.name for p in rb.glob("database_*.tcd")))[:70])
+
+
+def add_fixture_album(music: Path, name: str, artist: str, color: str, base_hz: int) -> bool:
+    """Generate one more tagged album (like make_fixtures.sh). False without ffmpeg."""
+    if not shutil.which("ffmpeg"):
+        return False
+    d = music / f"{artist} - {name}"
+    d.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi",
+                    "-i", f"color=c=0x{color}:s=300x300:d=1", "-frames:v", "1", "-q:v", "3",
+                    str(d / "cover.jpg")], check=True)
+    for t in (1, 2):
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi",
+                        "-i", f"sine=frequency={base_hz + t * 100}:duration=4",
+                        "-ac", "2", "-ar", "44100", "-b:a", "64k", "-id3v2_version", "3",
+                        "-metadata", f"title=Track {t}", "-metadata", f"artist={artist}",
+                        "-metadata", f"album_artist={artist}", "-metadata", f"album={name}",
+                        "-metadata", f"track={t}", str(d / f"0{t} - Track {t}.mp3")], check=True)
+    return True
+
+
+def run_library_change(build_dir: Path, out: Path, report: Report):
+    """Phase 3: music was added and the database rebuilt (what `y1.py sync`
+    does). CoverFlow's album index was built against the OLD database and
+    stores seek offsets into it; it must notice and rebuild, or select does
+    nothing (yellow, 2026-09-26: 5/9 hwtest after a database rebuild)."""
+    root = build_dir / "simdisk"
+    rb = root / ".rockbox"
+    idx = rb / "rocks/pictureflow/pictureflow_album.idx"
+    if not idx.exists():
+        idx = rb / "rocks/demos/pictureflow/pictureflow_album.idx"
+    before = idx.stat().st_mtime_ns if idx.exists() else None
+    report.check("CoverFlow wrote an album index in phase 2", before is not None, str(idx))
+
+    if not add_fixture_album(root / "Music", "Yellow Album", "Yellow Band", "ffcc00", 900):
+        report.check("ffmpeg available to add a fixture album", False)
+        return
+    for p in rb.glob("database_*.tcd"):
+        p.unlink()
+    (rb / "config.cfg").write_text(KIOSK_CONFIG)
+
+    sim = Sim(build_dir, out, "kiosk-dbchange")
+    sim.start()
+    try:
+        ok = sim.wait_for(r"SIMTRACE plugin_load .*pictureflow", 120) is not None
+        report.check("after a library change the kiosk still boots into CoverFlow", ok)
+        report.check("database rebuilt itself before CoverFlow started", database_built(rb))
+        time.sleep(6.0)  # album index + art cache rebuild
+        after = idx.stat().st_mtime_ns if idx.exists() else None
+        report.check("CoverFlow rebuilt its album index for the new database",
+                     after is not None and after != before)
+        sim.screenshot("04-coverflow-after-dbchange")
+        m = sim.mark()
+        sim.tap(SELECT)
+        ok = sim.wait_for(rf"SIMTRACE activity push {ACT_ID['ACTIVITY_WPS']} ", 15, m) is not None
+        report.check("selecting an album still plays it after the database changed", ok,
+                     f"activity={sim.current_activity()}")
+        sim.screenshot("05-player-after-dbchange")
+    finally:
+        sim.stop()
 
 
 def enter_coverflow_baseline(sim: Sim, report: Report):
@@ -430,6 +465,8 @@ def main():
 
     if args.profile == "kiosk-nodb":
         print("== kiosk without a database (safety valve)")
+        # no music at all: the boot-time build then yields nothing usable
+        shutil.rmtree(root / "Music", ignore_errors=True)
         (rb / "config.cfg").write_text(KIOSK_CONFIG)
         sim = Sim(build_dir, out, args.profile)
         sim.start()
@@ -460,6 +497,10 @@ def main():
         run_contract(sim, report, args.profile)
     finally:
         sim.stop()
+
+    if args.profile == "kiosk":
+        print("== phase 3: library changed, database rebuilt")
+        run_library_change(build_dir, out, report)
 
     print(f"== {len(report.rows) - len(report.failed)}/{len(report.rows)} checks passed; "
           f"traces and screenshots in {out}")

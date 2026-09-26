@@ -5239,6 +5239,13 @@ static bool NO_INLINE db_file_exists(const char* filename)
     return file_exists(buf);
 }
 
+/* Database maintenance without questions: a kiosk (nobody to answer) or a
+ * user who asked for automatic updates. */
+static bool tagcache_hands_free(void)
+{
+    return global_settings.kiosk_mode || global_settings.tagcache_autoupdate;
+}
+
 static void tagcache_thread(void)
 {
     struct queue_event ev;
@@ -5253,14 +5260,36 @@ static void tagcache_thread(void)
                                       ID2P(LANG_TAGCACHE_UPDATE)};
         static const struct text_message message = {lines, 2};
 
-        if (gui_syncyesno_run_w_tmo(HZ * 5, YESNO_YES, str(LANG_TAGCACHE),
-                                    &message, NULL, NULL) == YESNO_YES)
+        /* Kiosk devices have nobody to answer, and on the Android port the
+         * timed yes/no is a native dialog that ignores the timeout. */
+        if (tagcache_hands_free()
+            || gui_syncyesno_run_w_tmo(HZ * 5, YESNO_YES, str(LANG_TAGCACHE),
+                                       &message, NULL, NULL) == YESNO_YES)
 #endif
         {
             allocate_tempbuf();
             commit();
             free_tempbuf();
         }
+    }
+    else if (tagcache_hands_free() && !db_file_exists(TAGCACHE_FILE_MASTER))
+    {
+        /* No database at all. Autoupdate only ever maintained an existing
+         * one; a missing one waited for Database -> "Initialize now?".
+         * Build it here instead, before the UI starts: the commit needs a
+         * large buffer, and the audio buffer is still free at this point,
+         * so the whole thing finishes in this boot (no delayed commit, no
+         * restart). main.c blocks in init_tagcache() and shows progress. */
+        logf("no database: building it at boot");
+#ifdef SIMULATOR
+        DEBUGF("SIMTRACE tagcache boot build\n");
+#endif
+        allocate_tempbuf();
+        tagcache_build();
+        free_tempbuf();
+#ifdef SIMULATOR
+        DEBUGF("SIMTRACE tagcache boot build done ready=%d\n", tc_stat.ready);
+#endif
     }
 
 #ifdef HAVE_TC_RAMCACHE
@@ -5426,6 +5455,7 @@ static int get_progress(void)
 struct tagcache_stat* tagcache_get_stat(void)
 {
     tc_stat.total_entries = current_tcmh.tch.entry_count;
+    tc_stat.db_datasize = current_tcmh.tch.datasize;
     tc_stat.progress = get_progress();
     tc_stat.processed_entries = processed_dir_count;
 

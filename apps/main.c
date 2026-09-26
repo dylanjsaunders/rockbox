@@ -384,6 +384,16 @@ static void init_tagcache(void)
             }
             clear = true;
         }
+        else
+        {
+            /* boot-time database build (tagcache.c, autoupdate + no db) */
+            struct tagcache_stat *stat = tagcache_get_stat();
+            if (stat->processed_entries > 0)
+            {
+                splashf(0, "Building database... %d", stat->processed_entries);
+                clear = true;
+            }
+        }
         sleep(HZ/4);
     }
     tagtree_init();

@@ -96,6 +96,7 @@ struct tagcache_stat {
     int  progress;           /* Current progress of disk scan */
     int  processed_entries;  /* Scanned disk entries so far */
     int  total_entries;      /* Total entries in tagcache */
+    long db_datasize;        /* master header datasize of the loaded database */
     int  queue_length;       /* Command queue length */
 
     //const char *uimessage;   /* Pending error message. Implement soon. */

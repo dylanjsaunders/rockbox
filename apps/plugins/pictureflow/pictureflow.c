@@ -290,7 +290,7 @@ typedef fb_data pix_t;
 #define CACHE_VERSION 4
 #define CONFIG_VERSION 1
 #define CONFIG_FILE "pictureflow.cfg"
-#define INDEX_HDR "PFID"
+#define INDEX_HDR "PFIE"   /* PFID + database fingerprint (see pf_index_t) */
 
 /** structs we use */
 struct pf_config_t
@@ -323,6 +323,13 @@ struct pf_index_t {
     uint32_t            header; /*INDEX_HDR*/
     uint16_t            artist_ct;
     uint16_t            album_ct;
+
+    /* The album index stores seek offsets into the database files, so it
+     * is only valid for the database it was built from. Remember that
+     * database's master header; a rebuilt or updated database changes it
+     * and the index is rebuilt on the next load. */
+    long                db_entries;
+    long                db_datasize;
 
     char               *artist_names;
     struct artist_data *artist_index;
@@ -1543,10 +1550,29 @@ retry_artist_lookup:
 /*Saves the album index into a binary file to be recovered the
  next time PictureFlow is launched*/
 
+/* Fingerprint of the database currently loaded by the core */
+static void get_database_fingerprint(long *entries, long *datasize)
+{
+    struct tagcache_stat *stat = rb->tagcache_get_stat();
+    *entries = stat->total_entries;
+    *datasize = stat->db_datasize;
+}
+
+/* Entry count and data size change whenever files are added or removed;
+ * the commit counter is deliberately left out (an empty commit would
+ * otherwise force a rebuild). */
+static bool index_matches_database(const struct pf_index_t *data)
+{
+    long entries, datasize;
+    get_database_fingerprint(&entries, &datasize);
+    return data->db_entries == entries && data->db_datasize == datasize;
+}
+
 static int save_album_index(void){
     int fd = rb->creat(ALBUM_INDEX,0666);
 
     struct pf_index_t data;
+    get_database_fingerprint(&pf_idx.db_entries, &pf_idx.db_datasize);
     memcpy(&data, &pf_idx, sizeof(struct pf_index_t));
 
     if(fd >= 0)
@@ -1598,6 +1624,12 @@ static int load_album_index(void){
             if (rb->read(fr, &data, sizeof(data)) == sizeof(data) &&
                 rb->memcmp(&(data.header), INDEX_HDR, sizeof(data.header)) == 0)
             {
+                if (!index_matches_database(&data))
+                {
+                    rb->splash(HZ/2, "Music library changed, updating...");
+                    goto stale;
+                }
+
                 name_sz = data.artist_len + data.album_len;
                 album_idx_sz = data.album_ct * sizeof(struct album_data);
 
@@ -1658,6 +1690,7 @@ static int load_album_index(void){
 
 failure:
     rb->splash(HZ/2, "Failed to load index");
+stale:
     if (fr >= 0)
         rb->close(fr);
 
