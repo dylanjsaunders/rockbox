@@ -388,7 +388,7 @@ def run_contract(sim: Sim, report: Report, profile: str):
 
     # 6. Only the parent chord (Play + Menu held ~3 s) reaches the main menu
     m = sim.mark()
-    sim.chord(PLAY, MENU, 3.5)
+    sim.chord(PLAY, MENU, 5.5)
     ok = sim.wait_for(r"SIMTRACE root menu shown", 8, m) is not None
     report.check("parent chord reaches the main menu", ok, f"activity={sim.current_activity()}")
     sim.screenshot("03-after-chord")

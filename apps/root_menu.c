@@ -879,6 +879,7 @@ static void ignore_back_button_stub(bool ignore)
 #define KIOSK_PLUGIN     PLUGIN_DEMOS_DIR "/pictureflow.rock"
 #define KIOSK_PARAM      "kiosk"
 #define KIOSK_MAX_FAILS  3       /* abnormal plugin exits before we give up */
+#define KIOSK_DB_WAIT    (5*60*HZ) /* max wait for a database commit/scan at boot */
 
 static bool kiosk_unlocked = false;
 
@@ -887,10 +888,40 @@ bool kiosk_active(void)
     return global_settings.kiosk_mode && !kiosk_unlocked;
 }
 
+#ifdef HAVE_TAGCACHE
+/* PictureFlow gives up after ~1 s if the database is not usable, e.g. while
+ * a commit runs at boot after an interrupted scan. Without this, three taps
+ * on its "press any button" prompt would trip the safety valve and unlock.
+ * Wait (bounded) while the database is actually working; a missing database
+ * (nothing scanned, nothing to commit) is not waited for. */
+static void kiosk_wait_for_database(void)
+{
+    long deadline = current_tick + KIOSK_DB_WAIT;
+    bool shown = false;
+    while (!tagcache_is_usable() && TIME_BEFORE(current_tick, deadline))
+    {
+        struct tagcache_stat *stat = tagcache_get_stat();
+        if (stat->commit_delayed)
+            break;                      /* needs a restart; nothing to wait for */
+        if (stat->readyvalid && stat->commit_step == 0 && stat->processed_entries == 0)
+            break;                      /* no database and not building one */
+        if (!shown)
+        {
+            splash(0, "Updating music library...");
+            shown = true;
+        }
+        sleep(HZ/2);
+    }
+}
+#endif
+
 static int kiosk_run_plugin(void)
 {
     static int abnormal_exits = 0;
 
+#ifdef HAVE_TAGCACHE
+    kiosk_wait_for_database();
+#endif
     push_activity_without_refresh(ACTIVITY_UNKNOWN); /* prevent plugin_load */
     int ret = plugin_load(KIOSK_PLUGIN, KIOSK_PARAM);  /* from flashing root  */
     pop_current_activity_without_refresh();          /* menu activity       */

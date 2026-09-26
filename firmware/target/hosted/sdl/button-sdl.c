@@ -39,6 +39,7 @@
 #include "buttonmap.h"
 #include "debug.h"
 #include <string.h>
+#include <sys/stat.h>
 #include "powermgmt.h"
 #include "storage.h"
 
@@ -398,7 +399,8 @@ void gui_message_loop(void)
 /*
  * Scripted input for headless/automated runs.
  *
- * If RBSIM_INPUT names a FIFO (or file), a thread reads it line by line and
+ * If RBSIM_INPUT names a FIFO (a regular file would replay at EOF forever),
+ * a thread reads it line by line and
  * feeds synthetic SDL key events through the normal event handler, so the
  * regular simulator button maps apply.  Commands (one per line):
  *   down <SDL key name>   press and hold, e.g. "down Escape"
@@ -497,8 +499,15 @@ static int sim_scripted_input_thread(void *path_)
 void sim_scripted_input_start(void)
 {
     const char *path = getenv("RBSIM_INPUT");
-    if (path && *path)
-        SDL_CreateThread(sim_scripted_input_thread, "rbsim-input", (void *)path);
+    struct stat st;
+    if (!path || !*path)
+        return;
+    if (stat(path, &st) != 0 || !S_ISFIFO(st.st_mode))
+    {
+        fprintf(stderr, "SIMTRACE input: RBSIM_INPUT must be a FIFO: %s\n", path);
+        return;
+    }
+    SDL_CreateThread(sim_scripted_input_thread, "rbsim-input", (void *)path);
 }
 #endif /* SIMULATOR */
 

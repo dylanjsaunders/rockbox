@@ -161,7 +161,7 @@ const struct button_mapping pf_context_buttons[] =
     {PF_QUIT,         BUTTON_MENU|BUTTON_REL,     BUTTON_MENU},
     {PF_SORTING_NEXT, BUTTON_SELECT|BUTTON_MENU,  BUTTON_NONE},
     {PF_SORTING_PREV, BUTTON_SELECT|BUTTON_PLAY,  BUTTON_NONE},
-    /* kiosk parent chord: hold Play, add Menu, keep both held ~3 s */
+    /* kiosk parent chord: hold Play, add Menu, keep both held ~5 s */
     {PF_KIOSK_UNLOCK, BUTTON_MENU|BUTTON_PLAY,               BUTTON_NONE},
     {PF_KIOSK_UNLOCK, BUTTON_MENU|BUTTON_PLAY|BUTTON_REPEAT, BUTTON_NONE},
 #elif CONFIG_KEYPAD == MPIO_HD300_PAD
@@ -4325,7 +4325,7 @@ static int context_menu(void)
  * selecting an album always goes to the WPS, Menu-hold toggles shuffle, and
  * only the parent chord (PF_KIOSK_UNLOCK held for KIOSK_UNLOCK_HOLD) returns
  * PLUGIN_GOTO_ROOT, which the core treats as the unlock signal. */
-#define KIOSK_UNLOCK_HOLD (3*HZ)
+#define KIOSK_UNLOCK_HOLD (4*HZ)   /* ~5 s of real hold; a squeezed wheel won't do it */
 static bool kiosk = false;
 static long kiosk_unlock_start = 0;
 

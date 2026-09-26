@@ -823,9 +823,10 @@ long gui_wps_show(void)
             button = skintouch_to_wps();
 #endif
         button = do_party_mode(button); /* block select actions in party mode */
-        button = do_kiosk_mode(button); /* block screen-opening actions in kiosk mode */
 
         button = action_wpsab_single(button); /* iPods/X5/M5 */
+        /* after the A/B mapping so Menu->browse is never turned into a marker */
+        button = do_kiosk_mode(button); /* block screen-opening actions in kiosk mode */
 
         switch(button)
         {

@@ -16,7 +16,7 @@ contract it checks:
 | 4 | selecting an album opens the player | track list / nothing |
 | 5 | Menu in the player returns to CoverFlow | main menu |
 | 6 | centre-hold in the player opens nothing | WPS context menu (delete, playlist...) |
-| 7 | parent chord (hold Play, add Menu, ~3 s) reaches the main menu | nothing happens |
+| 7 | parent chord (hold Play, add Menu, ~5 s) reaches the main menu | nothing happens |
 
 The `baseline` profile (kiosk mode off, CoverFlow via a shortcut) is expected
 to **fail** checks 2, 5, 6 and 7: that run documents the leaks. The `kiosk`
