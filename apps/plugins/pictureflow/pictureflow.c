@@ -4803,8 +4803,12 @@ static int pictureflow_main(void)
             ,instant_update ? 0 : HZ/16,
             get_context_map);
 
+        /* Only a real button action interrupts the parent chord: system
+         * events (charger/battery/USB notifications arrive every few seconds
+         * on the Y1) and redraw requests must not reset the hold timer. */
         if (button != PF_KIOSK_UNLOCK && button != ACTION_NONE
-            && button != ACTION_UNKNOWN)
+            && button != ACTION_UNKNOWN && button != ACTION_REDRAW
+            && button > 0 && !IS_SYSEVENT(button))
             kiosk_unlock_start = 0;
 
         switch (button) {
