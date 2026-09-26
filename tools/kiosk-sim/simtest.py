@@ -462,11 +462,16 @@ def run_contract(sim: Sim, report: Report, profile: str):
     sim.wait_for(r"SIMTRACE plugin_load .*pictureflow", 15, m)
     time.sleep(1.0)
 
-    # 5. Centre-hold in the player must not open the context menu
+    # 5. Re-selecting the album that is playing keeps the track ("Now Playing")
+    m = sim.mark()
     sim.tap(SELECT)
-    if sim.wait_for(rf"SIMTRACE activity push {ACT_ID['ACTIVITY_WPS']} ", 15, sim.mark()) is None:
+    if sim.wait_for(rf"SIMTRACE activity push {ACT_ID['ACTIVITY_WPS']} ", 15, m) is None:
         report.check("re-enter player for context-menu check", False)
         return
+    kept = any("kiosk keep playing" in l for l in sim.since(m))
+    report.check("re-selecting the playing album keeps the current track", kept)
+
+    # 5b. Centre-hold in the player must not open the context menu
     time.sleep(1.0)
     m = sim.mark()
     sim.hold(SELECT, 1.0)

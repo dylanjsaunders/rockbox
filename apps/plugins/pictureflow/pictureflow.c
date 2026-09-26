@@ -4406,6 +4406,31 @@ static bool start_playback(bool return_to_WPS)
         return false;
     }
 
+    if (kiosk)
+    {
+        /* Re-selecting the album that is already playing is "Now Playing":
+         * keep the current track (resume it if paused) instead of starting
+         * the album over. A stopped player, or a track from another album,
+         * starts this album from the top as usual. */
+        int status = rb->audio_status();
+        struct mp3entry *id3 = rb->audio_current_track();
+        if ((status & AUDIO_STATUS_PLAY) && id3 && id3->path[0])
+        {
+            for (int i = 0; i < pf_tracks.count; i++)
+            {
+                if (rb->strcmp(get_track_filename(i), id3->path) == 0)
+                {
+                    if (status & AUDIO_STATUS_PAUSE)
+                        rb->audio_resume();
+#ifdef SIMULATOR
+                    DEBUGF("SIMTRACE kiosk keep playing\n");
+#endif
+                    return true;
+                }
+            }
+        }
+    }
+
     insert_whole_album = true;
     int start_index = pf_tracks.sel;
     bool shuffle = rb->global_settings->playlist_shuffle;
