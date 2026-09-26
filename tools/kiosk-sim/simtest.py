@@ -35,8 +35,8 @@ KIOSK_CONFIG = """\
 # kiosk profile written by tools/kiosk-sim/simtest.py
 kiosk mode: on
 warn when erasing dynamic playlist: off
-shuffle: on
-repeat: all
+shuffle: off
+repeat: off
 volume limit: -20
 volume: -25
 """
@@ -47,8 +47,8 @@ kiosk mode: off
 start in screen: root
 root menu order: shortcuts, database, wps, settings,
 warn when erasing dynamic playlist: off
-shuffle: on
-repeat: all
+shuffle: off
+repeat: off
 volume limit: -20
 volume: -25
 """
@@ -292,7 +292,7 @@ def add_fixture_album(music: Path, name: str, artist: str, color: str, base_hz: 
                     str(d / "cover.jpg")], check=True)
     for t in (1, 2):
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi",
-                        "-i", f"sine=frequency={base_hz + t * 100}:duration=4",
+                        "-i", f"sine=frequency={base_hz + t * 100}:duration=40",
                         "-ac", "2", "-ar", "44100", "-b:a", "64k", "-id3v2_version", "3",
                         "-metadata", f"title=Track {t}", "-metadata", f"artist={artist}",
                         "-metadata", f"album_artist={artist}", "-metadata", f"album={name}",

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Generate a tiny tagged music library (3 albums x 2 tracks, 4 s sine tones,
+# Generate a tiny tagged music library (3 albums x 2 tracks, 40 s sine tones,
 # ID3v2.3 with album artist, 300x300 cover.jpg) for the simulator tests.
 #   make_fixtures.sh <output Music dir>
 set -euo pipefail
@@ -12,7 +12,7 @@ for album in "Red Album|Red Band|ff0000" "Blue Album|Blue Band|0000ff" "Green Al
     d="$OUT/$artist - $name"; mkdir -p "$d"
     ffmpeg -loglevel error -y -f lavfi -i "color=c=0x$color:s=300x300:d=1" -frames:v 1 -q:v 3 "$d/cover.jpg"
     for t in 1 2; do
-        ffmpeg -loglevel error -y -f lavfi -i "sine=frequency=$((300+i*100)):duration=4" \
+        ffmpeg -loglevel error -y -f lavfi -i "sine=frequency=$((300+i*100)):duration=40" \
             -ac 2 -ar 44100 -b:a 64k -id3v2_version 3 \
             -metadata title="Track $t" -metadata artist="$artist" -metadata album_artist="$artist" \
             -metadata album="$name" -metadata track="$t" "$d/0$t - Track $t.mp3"
