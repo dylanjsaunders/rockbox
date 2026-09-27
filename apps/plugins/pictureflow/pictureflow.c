@@ -4884,7 +4884,12 @@ static int pictureflow_main(void)
             kiosk_unlock_start = 0;
         if (button != ACTION_NONE && button != ACTION_UNKNOWN
             && button != ACTION_REDRAW && button > 0 && !IS_SYSEVENT(button))
+        {
             kiosk_last_input = *rb->current_tick;
+#if defined(APPLICATION)
+            if (kiosk) rb->debugf("KIOSKTRACE pf button=%d", button);
+#endif
+        }
         else if (kiosk_idle_return_due()
                  && (pf_state == pf_idle || pf_state == pf_show_tracks))
         {
@@ -4915,6 +4920,9 @@ static int pictureflow_main(void)
                 /* Play is transport at every level: pause/resume in place;
                  * with nothing playing it starts the centred album. */
                 int status = rb->audio_status();
+#if defined(APPLICATION)
+                rb->debugf("KIOSKTRACE pf PF_WPS audio=%d state=%d", status, pf_state);
+#endif
                 if ((status & AUDIO_STATUS_PLAY) && !(status & AUDIO_STATUS_PAUSE))
                 {
                     rb->audio_pause();

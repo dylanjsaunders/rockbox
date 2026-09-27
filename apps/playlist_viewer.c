@@ -1056,6 +1056,10 @@ enum playlist_viewer_result playlist_viewer_ex(const char* filename,
             last_input = current_tick;
         if (kiosk_active())
         {
+#if defined(APPLICATION)
+            if (button != ACTION_NONE && button != ACTION_REDRAW && !IS_SYSEVENT(button))
+                debugf("KIOSKTRACE viewer button=%d audio=%d", button, audio_status());
+#endif
             /* kiosk: no context menu, quickscreen, hotkeys; Menu = Back;
              * Play = pause/resume in place (never "go to WPS" or stop) */
             switch (button)
