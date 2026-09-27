@@ -4887,9 +4887,7 @@ static int pictureflow_main(void)
         {
             kiosk_last_input = *rb->current_tick;
 #if defined(APPLICATION)
-            if (kiosk && button != PF_KIOSK_UNLOCK && button != PF_SELECT && button != PF_NEXT
-                && button != PF_PREV)
-                rb->splashf(HZ/3, "KIOSKTRACE pf button=%d", button);
+            if (kiosk) rb->debugf("KIOSKTRACE pf button=%d", button);
 #endif
         }
         else if (kiosk_idle_return_due()
@@ -4923,7 +4921,7 @@ static int pictureflow_main(void)
                  * with nothing playing it starts the centred album. */
                 int status = rb->audio_status();
 #if defined(APPLICATION)
-                rb->splashf(HZ/2, "KIOSKTRACE PF_WPS audio=%d", status);
+                rb->debugf("KIOSKTRACE pf PF_WPS audio=%d state=%d", status, pf_state);
 #endif
                 if ((status & AUDIO_STATUS_PLAY) && !(status & AUDIO_STATUS_PAUSE))
                 {
