@@ -73,6 +73,7 @@
 #include "language.h"
 #include "plugin.h"
 #include "disk.h"
+#include "file.h"
 
 struct root_items {
     int (*function)(void* param);
@@ -109,6 +110,44 @@ static void rootmenu_track_changed_callback(unsigned short id, void* param)
     struct mp3entry *id3 = ((struct track_event *)param)->id3;
     strmemccpy(current_track_path, id3->path, MAX_PATH);
 }
+
+/* Audiobooks: any folder under .../Music/Audiobooks/ is a book. Whenever one
+ * of its chapters starts or stops, remember the chapter and position in
+ * <book>/.kiosk_resume ("file\nelapsed\noffset\ndone\n"). PictureFlow reads
+ * it when the book's cover is selected, so a book picks up where it was left
+ * even after music played in between or a reboot. done=1 means that chapter
+ * ran to its end (start the next one). Music folders are never touched. */
+#define BOOKS_DIR_MATCH  "/Music/Audiobooks/"
+#define BOOK_RESUME_FILE ".kiosk_resume"
+static void book_resume_save(const struct mp3entry *id3, unsigned long elapsed,
+                             unsigned long offset, bool done)
+{
+    const char *slash = strrchr(id3->path, '/');
+    if (!slash || !strstr(id3->path, BOOKS_DIR_MATCH))
+        return;
+    size_t dirlen = slash - id3->path + 1;
+    if (dirlen + sizeof(BOOK_RESUME_FILE) > MAX_PATH)
+        return;
+    char path[MAX_PATH];
+    memcpy(path, id3->path, dirlen);
+    strcpy(path + dirlen, BOOK_RESUME_FILE);
+    int fd = open(path, O_WRONLY|O_CREAT|O_TRUNC, 0666);
+    if (fd < 0)
+        return;
+    fdprintf(fd, "%s\n%lu\n%lu\n%d\n", slash + 1, elapsed, offset, done ? 1 : 0);
+    close(fd);
+}
+static void book_resume_callback(unsigned short id, void *param)
+{
+    struct track_event *te = (struct track_event *)param;
+    if (!te->id3)
+        return;
+    if (id == PLAYBACK_EVENT_TRACK_FINISH && (te->flags & TEF_AUTO_SKIP))
+        book_resume_save(te->id3, 0, 0, true);
+    else
+        book_resume_save(te->id3, te->id3->elapsed, te->id3->offset, false);
+}
+
 static int browser(void* param)
 {
     int ret_val;
@@ -1016,6 +1055,8 @@ static int root_menu_setup_screens(void)
     add_event(PLAYBACK_EVENT_START_PLAYBACK, rootmenu_start_playback_callback);
 #endif
     add_event(PLAYBACK_EVENT_TRACK_CHANGE, rootmenu_track_changed_callback);
+    add_event(PLAYBACK_EVENT_TRACK_CHANGE, book_resume_callback);
+    add_event(PLAYBACK_EVENT_TRACK_FINISH, book_resume_callback);
 #ifdef HAVE_RTC_ALARM
     int alarm_wake_up_screen = 0;
     if ( rtc_check_alarm_started(true) )

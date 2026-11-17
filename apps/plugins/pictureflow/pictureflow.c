@@ -4384,6 +4384,53 @@ static void kiosk_toggle_shuffle(void)
     rb->splashf(HZ, "Shuffle %s", on ? "on" : "off");
 }
 
+/* Audiobooks (folders under .../Music/Audiobooks/): the core records the
+ * chapter and position in <book>/.kiosk_resume (see root_menu.c). Returns
+ * the track index to start at and fills the resume position; -1 if the
+ * album is not a book (play it as music). */
+static int book_resume_index(unsigned long *elapsed, unsigned long *offset)
+{
+    const char *first = get_track_filename(0);
+    if (!first || !rb->strstr(first, "/Music/Audiobooks/"))
+        return -1;
+    const char *slash = rb->strrchr(first, '/');
+    size_t dirlen = slash - first + 1;
+    char buf[MAX_PATH + 48];
+    if (dirlen + sizeof(".kiosk_resume") > sizeof(buf))
+        return 0;
+    rb->memcpy(buf, first, dirlen);
+    rb->strcpy(buf + dirlen, ".kiosk_resume");
+    int fd = rb->open(buf, O_RDONLY);
+    if (fd < 0)
+        return 0;                       /* never played: chapter 1 */
+    int n = rb->read(fd, buf, sizeof(buf) - 1);
+    rb->close(fd);
+    if (n <= 0)
+        return 0;
+    buf[n] = '\0';
+    char *field[4] = { buf, NULL, NULL, NULL };
+    for (int f = 1; f < 4; f++)
+    {
+        char *nl = rb->strchr(field[f - 1], '\n');
+        if (!nl)
+            return 0;
+        *nl = '\0';
+        field[f] = nl + 1;
+    }
+    for (int i = 0; i < pf_tracks.count; i++)
+    {
+        const char *name = rb->strrchr(get_track_filename(i), '/');
+        if (!name || rb->strcmp(name + 1, field[0]) != 0)
+            continue;
+        if (rb->atoi(field[3]))         /* chapter finished: next, or restart */
+            return (i + 1 < pf_tracks.count) ? i + 1 : 0;
+        *elapsed = rb->atoi(field[1]);
+        *offset  = rb->atoi(field[2]);
+        return i;
+    }
+    return 0;                           /* chapter gone (re-import): restart */
+}
+
 static bool start_playback(bool return_to_WPS)
 {
 #ifdef USEGSLIB
@@ -4434,6 +4481,17 @@ static bool start_playback(bool return_to_WPS)
     insert_whole_album = true;
     int start_index = pf_tracks.sel;
     bool shuffle = rb->global_settings->playlist_shuffle;
+    unsigned long resume_elapsed = 0, resume_offset = 0;
+    if (kiosk && !shuffle)
+    {
+        int book = book_resume_index(&resume_elapsed, &resume_offset);
+        if (book >= 0)
+            start_index = book;
+#ifdef SIMULATOR
+        if (book >= 0)
+            DEBUGF("SIMTRACE kiosk book resume %d %lu\n", book, resume_elapsed);
+#endif
+    }
     /* can't reuse playlist if it may be out of sync with our track list */
     if (shuffle || center_slide.slide_index != old_playlist
                 || (old_shuffle != shuffle))
@@ -4448,7 +4506,7 @@ static bool start_playback(bool return_to_WPS)
         if (shuffle)
             start_index = rb->playlist_shuffle(*rb->current_tick, pf_tracks.sel);
     }
-    rb->playlist_start(start_index, 0, 0);
+    rb->playlist_start(start_index, resume_elapsed, resume_offset);
     old_shuffle = shuffle;
 #ifdef USEGSLIB
     if (!return_to_WPS)
