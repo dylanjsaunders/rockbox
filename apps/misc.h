@@ -162,6 +162,8 @@ enum volume_adjust_mode
 /* min/max values for global_settings.volume_adjust_norm_steps */
 #define MIN_NORM_VOLUME_STEPS 10
 #define MAX_NORM_VOLUME_STEPS 100
+/* highest usable volume: min(hardware max, volume limit) */
+int volume_ceiling(void);
 
 /* check range, set volume and save settings */
 void setvol(void);

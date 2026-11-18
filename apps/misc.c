@@ -881,20 +881,31 @@ void setvol(void)
     status_save(false);
 }
 
+/* The steps span silence .. the volume limit (not the hardware maximum):
+ * with a limit set, every step is usable and the top step IS the limit,
+ * instead of most steps sitting above it doing nothing (Y1 kiosk: -32 dB
+ * limit left 15 of 43 steps usable). No limit = hardware max = stock. */
+int volume_ceiling(void)
+{
+    return MIN(sound_max(SOUND_VOLUME), global_settings.volume_limit);
+}
+
 #ifdef HAVE_PERCEPTUAL_VOLUME
 static short norm_tab[MAX_NORM_VOLUME_STEPS+2];
 static int norm_tab_num_steps;
 static int norm_tab_size;
+static int norm_tab_max;
 
 static void update_norm_tab(void)
 {
     const int lim = global_settings.volume_adjust_norm_steps;
-    if (lim == norm_tab_num_steps)
+    const int max = volume_ceiling();
+    if (lim == norm_tab_num_steps && max == norm_tab_max)
         return;
     norm_tab_num_steps = lim;
+    norm_tab_max = max;
 
     const int min = sound_min(SOUND_VOLUME);
-    const int max = sound_max(SOUND_VOLUME);
     const int step = sound_steps(SOUND_VOLUME);
 
     /* Ensure the table contains the minimum volume */
